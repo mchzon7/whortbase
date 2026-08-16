@@ -139,7 +139,7 @@ app.post('/login', async (req, res) => {
 });
 
 // DELETE Route: Remove Host Room & Cleanup
-app.delete('/api/rooms/delete/:roomId', async (req, res) => {
+app.delete('/api/rooms/delete/:roomId', telegramOnlyGuard, async (req, res) => {
   try {
     const { roomId } = req.params;
 
