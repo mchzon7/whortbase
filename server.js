@@ -85,20 +85,29 @@ function isTelegramInitDataValid(initData, botToken) {
 
 // Middleware: Block direct browser API access
 const telegramOnlyGuard = (req, res, next) => {
-  const initData = req.headers['x-telegram-init-data'] || req.query.tgWebAppStartParam;
+  // Check if request is coming from Telegram Mini App webview
+  const initDataHeader = req.headers['x-telegram-init-data'];
+  const tgParam = req.query.tgWebAppStartParam || req.query.tgWebAppData;
+  const userAgent = req.headers['user-agent'] || '';
 
-  if (initData && isTelegramInitDataValid(initData, process.env.TELEGRAM_BOT_TOKEN)) {
+  // 1. Allow API requests with validated header/param
+  if (initDataHeader && isTelegramInitDataValid(initDataHeader, process.env.TELEGRAM_BOT_TOKEN)) {
     return next();
   }
 
-  // Reject unauthorized direct browser requests
+  // 2. Allow initial page load inside Telegram WebView (Frontend script will do validation)
+  if (req.method === 'GET' && !req.path.startsWith('/api/')) {
+    return next();
+  }
+
+  // 3. Block external direct browser calls to backend endpoints
   return res.status(403).json({
     success: false,
     message: 'Access Denied: Application must be opened inside Telegram.'
   });
 };
 
-// Apply to API routes
+// Apply ONLY to API routes, NOT to HTML/EJS render routes
 app.use('/api/', telegramOnlyGuard);
 
 // HTTP Routes
