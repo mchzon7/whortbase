@@ -176,14 +176,14 @@ app.delete('/api/rooms/delete/:roomId', telegramOnlyGuard, async (req, res) => {
   }
 });
 
-app.get('/dashboard', authGuard, telegramOnlyGuard, async (req, res) => {
+app.get('/dashboard', authGuard,telegramOnlyGuard, async (req, res) => {
   const rooms = await GameSession.find({ status: 'waiting' }).populate('host', 'username');
   res.render('dashboard', { user: req.user, rooms });
 });
 
 app.get('/wallet', authGuard,telegramOnlyGuard, (req, res) => res.render('wallet', { user: req.user }));
 // Add payment callback verification route
-app.get('/wallet/verify', authGuard,telegramOnlyGuard, paystackCtrl.verifyDeposit);
+app.get('/wallet/verify', authGuard, paystackCtrl.verifyDeposit);
 
 app.get('/admin', authGuard, adminGuard, async (req, res) => {
   const users = await User.find();
@@ -192,7 +192,7 @@ app.get('/admin', authGuard, adminGuard, async (req, res) => {
   res.render('admin', { users, txns, houseRevenue: totalRake[0]?.total || 0 });
 });
 
-app.get('/game/:roomId', authGuard,telegramOnlyGuard, async (req, res) => {
+app.get('/game/:roomId', authGuard, async (req, res) => {
   const room = await GameSession.findOne({ roomId: req.params.roomId });
   if (!room) return res.redirect('/dashboard');
   res.render('game', { user: req.user, roomId: req.params.roomId });
@@ -200,9 +200,9 @@ app.get('/game/:roomId', authGuard,telegramOnlyGuard, async (req, res) => {
 
 // API Endpoints for Wallet Operations
 app.post('/api/deposit/paystack', authGuard, paystackCtrl.initializeDeposit);
-app.post('/api/webhook/paystack',telegramOnlyGuard, paystackCtrl.webhook);
-app.post('/api/withdraw/faucetpay', authGuard,telegramOnlyGuard, faucetpayCtrl.withdrawCrypto);
-app.post('/api/withdraw/opay', authGuard,telegramOnlyGuard, opayCtrl.withdrawBank);
+app.post('/api/webhook/paystack', paystackCtrl.webhook);
+app.post('/api/withdraw/faucetpay', authGuard, faucetpayCtrl.withdrawCrypto);
+app.post('/api/withdraw/opay', authGuard, opayCtrl.withdrawBank);
 
 // Socket.io Real-Time Game Mechanics & Engine State Manager
 const activeGames = {}; // In-memory runtime state
