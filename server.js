@@ -59,61 +59,11 @@ const adminGuard = (req, res, next) => {
   else res.status(403).send('Forbidden');
 };
 
-// Utility: Cryptographically verify Telegram initData
-function isTelegramInitDataValid(initData, botToken) {
-  if (!initData) return false;
-
-  const urlParams = new URLSearchParams(initData);
-  const hash = urlParams.get('hash');
-  urlParams.delete('hash');
-
-  const dataCheckString = Array.from(urlParams.entries())
-    .map(([key, value]) => `${key}=${value}`)
-    .sort()
-    .join('\n');
-
-  const secretKey = crypto.createHmac('sha256', 'WebAppData')
-    .update(botToken)
-    .digest();
-
-  const calculatedHash = crypto.createHmac('sha256', secretKey)
-    .update(dataCheckString)
-    .digest('hex');
-
-  return calculatedHash === hash;
-}
-
-// Middleware: Block direct browser API access
-const telegramOnlyGuard = (req, res, next) => {
-  // Check if request is coming from Telegram Mini App webview
-  const initDataHeader = req.headers['x-telegram-init-data'];
-  const tgParam = req.query.tgWebAppStartParam || req.query.tgWebAppData;
-  const userAgent = req.headers['user-agent'] || '';
-
-  // 1. Allow API requests with validated header/param
-  if (initDataHeader && isTelegramInitDataValid(initDataHeader, process.env.TELEGRAM_BOT_TOKEN)) {
-    return next();
-  }
-
-  // 2. Allow initial page load inside Telegram WebView (Frontend script will do validation)
-  if (req.method === 'GET' && !req.path.startsWith('/api/')) {
-    return next();
-  }
-
-  // 3. Block external direct browser calls to backend endpoints
-  return res.status(403).json({
-    success: false,
-    message: 'Access Denied: Application must be opened inside Telegram.'
-  });
-};
-
-// Apply ONLY to API routes, NOT to HTML/EJS render routes
-app.use('/api/', telegramOnlyGuard);
 
 // HTTP Routes
-app.get('/',telegramOnlyGuard, (req, res) => res.render('login', { error: null }));
-app.get('/login',telegramOnlyGuard, (req, res) => res.render('login', { error: null }));
-app.get('/register', telegramOnlyGuard, (req, res) => res.render('register', { error: null }));
+app.get('/', (req, res) => res.render('login', { error: null }));
+app.get('/login', (req, res) => res.render('login', { error: null }));
+app.get('/register',  (req, res) => res.render('register', { error: null }));
 
 app.post('/register', async (req, res) => {
   try {
@@ -139,7 +89,7 @@ app.post('/login', async (req, res) => {
 });
 
 // DELETE Route: Remove Host Room & Cleanup
-app.delete('/api/rooms/delete/:roomId', telegramOnlyGuard, async (req, res) => {
+app.delete('/api/rooms/delete/:roomId',  async (req, res) => {
   try {
     const { roomId } = req.params;
 
@@ -176,12 +126,12 @@ app.delete('/api/rooms/delete/:roomId', telegramOnlyGuard, async (req, res) => {
   }
 });
 
-app.get('/dashboard', authGuard,telegramOnlyGuard, async (req, res) => {
+app.get('/dashboard', authGuard, async (req, res) => {
   const rooms = await GameSession.find({ status: 'waiting' }).populate('host', 'username');
   res.render('dashboard', { user: req.user, rooms });
 });
 
-app.get('/wallet', authGuard,telegramOnlyGuard, (req, res) => res.render('wallet', { user: req.user }));
+app.get('/wallet', authGuard, (req, res) => res.render('wallet', { user: req.user }));
 // Add payment callback verification route
 app.get('/wallet/verify', authGuard, paystackCtrl.verifyDeposit);
 
@@ -199,7 +149,7 @@ app.get('/game/:roomId', authGuard, async (req, res) => {
 });
 
 // API Endpoints for Wallet Operations
-app.post('/api/deposit/paystack', authGuard,telegramOnlyGuard, paystackCtrl.initializeDeposit);
+app.post('/api/deposit/paystack', authGuard, paystackCtrl.initializeDeposit);
 app.post('/api/webhook/paystack', paystackCtrl.webhook);
 app.post('/api/withdraw/faucetpay', authGuard, faucetpayCtrl.withdrawCrypto);
 app.post('/api/withdraw/opay', authGuard, opayCtrl.withdrawBank);
