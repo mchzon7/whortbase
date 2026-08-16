@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Naija Whot</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>body { background-color: #121212; color: #fff; }</style>
+</head>
+<body class="d-flex align-items-center vh-100">
+  <div class="container col-md-4">
+    <div class="card bg-dark text-white border-secondary p-4">
+      <h3 class="text-center text-warning mb-3">Naija Whot Login</h3>
+      <% if(error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+      <form action="/login" method="POST">
+        <div class="mb-3"><label>Email</label><input type="email" name="email" class="form-control bg-dark text-white border-secondary" required></div>
+        <div class="mb-3"><label>Password</label><input type="password" name="password" class="form-control bg-dark text-white border-secondary" required></div>
+        <button class="btn btn-warning w-100 fw-bold">Login</button>
+      </form>
+      <a href="/register" class="text-secondary text-center d-block mt-3">Create account</a>
+    </div>
+  </div>
+</body>
+</html>

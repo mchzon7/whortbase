@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Whot Arena - <%= roomId %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { background-color: #0b1d13; color: #fff; touch-action: manipulation; }
+    
+    /* Authentic Classic Whot Card Design */
+    .card-whot {
+      width: 90px;
+      height: 135px;
+      border-radius: 8px;
+      cursor: pointer;
+      position: relative;
+      background: #fdfdfd;
+      color: #800000; /* Distinctive Dark Red/Brown Tone */
+      border: 2px solid #ccc;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      display: inline-block;
+      margin: 5px;
+      user-select: none;
+      transition: transform 0.1s ease;
+    }
+    .card-whot:hover { transform: translateY(-5px); }
+
+    /* Corner Numbers & Mini Shapes */
+    .corner { position: absolute; font-weight: 900; line-height: 1; text-align: center; }
+    .top-left { top: 4px; left: 4px; }
+    .bottom-right { bottom: 4px; right: 4px; transform: rotate(180deg); }
+    .corner-num { font-size: 18px; display: block; }
+    .corner-icon { font-size: 10px; display: block; margin-top: -2px; }
+
+    /* Central SVG Shape Styling */
+    .center-symbol {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 50px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      fill: #800000;
+    }
+    
+    .whot-text { font-family: serif; font-weight: bold; font-size: 18px; text-align: center; }
+
+    .shape-btn {
+      width: 80px; height: 80px; border-radius: 12px; border: 2px solid #800000;
+      background: #fff; fill: #800000; display: flex; align-items: center; justify-content: center;
+    }
+    .shape-btn:hover { background: #f0f0f0; }
+  </style>
+</head>
+<body class="d-flex flex-column vh-100">
+  
+  <div class="p-2 bg-dark text-center border-bottom border-secondary d-flex justify-content-between align-items-center">
+  <span>Room: <%= roomId %></span>
+  <span id="turnStatus" class="text-warning font-weight-bold">Waiting for players...</span>
+  <button class="btn btn-outline-danger btn-sm fw-bold" onclick="showExitModal()">Exit Game</button>
+</div>
+
+  <div class="flex-grow-1 d-flex flex-column justify-content-between p-3 text-center">
+    <!-- Leave Game Confirmation Modal -->
+<div class="modal fade" id="exitModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-white border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title text-danger">Leave Game?</h5>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">Leaving an active game counts as a <strong>forfeit</strong>. You will lose your staked points for this round.</p>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" onclick="confirmExit()">Quit & Forfeit</button>
+      </div>
+    </div>
+  </div>
+</div>
+    <!-- Top Played Card -->
+    <div class="my-auto">
+      <small class="text-secondary d-block mb-1">CURRENT TOP CARD</small>
+      <div id="topCard" class="mx-auto"></div>
+      <button onclick="drawCard()" class="btn btn-warning mt-3 px-4 rounded-pill fw-bold">Draw Card (Market)</button>
+    </div>
+
+    <!-- Active Player Hand -->
+    <div>
+      <div id="handContainer" class="d-flex justify-content-center flex-wrap"></div>
+    </div>
+  </div>
+
+  <!-- Whot Shape Selection Modal -->
+  <div class="modal fade" id="whotModal" data-bs-backdrop="static" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark text-white border-secondary">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title text-warning">Select Next Shape (WHOT 20)</h5>
+        </div>
+        <div class="modal-body d-flex justify-content-around">
+          <button class="shape-btn" onclick="confirmWhot('Circle')">
+            <svg viewBox="0 0 24 24" width="40" height="40"><circle cx="12" cy="12" r="10"/></svg>
+          </button>
+          <button class="shape-btn" onclick="confirmWhot('Triangle')">
+            <svg viewBox="0 0 24 24" width="40" height="40"><polygon points="12,2 22,22 2,22"/></svg>
+          </button>
+          <button class="shape-btn" onclick="confirmWhot('Cross')">
+            <svg viewBox="0 0 24 24" width="40" height="40"><path d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7V2z"/></svg>
+          </button>
+          <button class="shape-btn" onclick="confirmWhot('Square')">
+            <svg viewBox="0 0 24 24" width="40" height="40"><rect x="2" y="2" width="20" height="20"/></svg>
+          </button>
+          <button class="shape-btn" onclick="confirmWhot('Star')">
+            <svg viewBox="0 0 24 24" width="40" height="40"><polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const socket = io();
+    const roomId = "<%= roomId %>";
+    const userId = "<%= user._id %>";
+    let pendingWhotIndex = null;
+    let whotModalObj = new bootstrap.Modal(document.getElementById('whotModal'));
+
+    socket.on('connect', () => {
+    socket.emit('joinRoom', { roomId, userId });
+    });
+
+    socket.on('gameStateUpdate', renderGame);
+    socket.on('gameStarted', renderGame);
+    socket.on('errorMsg', (msg) => alert(msg));
+    socket.on('gameOver', (data) => {
+      alert(data.winnerId === userId ? "VICTORY! You won the pot!" : "MATCH OVER!");
+      window.location.href = '/dashboard';
+    });
+    let exitModalObj = new bootstrap.Modal(document.getElementById('exitModal'));
+
+function showExitModal() {
+  exitModalObj.show();
+}
+
+function confirmExit() {
+  exitModalObj.hide();
+  socket.emit('leaveRoom', { roomId, userId });
+  window.location.href = '/dashboard';
+}
+
+  // Handle notification if the opponent leaves
+  socket.on('playerForfeited', (data) => {
+    alert(data.message);
+    window.location.href = '/dashboard';
+  });
+
+  socket.on('roundEnded', (data) => {
+  if (data.eliminatedPlayerId === userId) {
+    alert("You had the highest card count and were eliminated! Returning to dashboard.");
+    window.location.href = '/dashboard';
+  } else {
+    alert(`Round Over! Player with highest points was eliminated. Preparing next round with ${data.remainingPlayersCount} players...`);
+  }
+  });
+
+    function getShapeSVG(shape) {
+      if (shape === 'Circle') return '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>';
+      if (shape === 'Triangle') return '<svg viewBox="0 0 24 24"><polygon points="12,2 22,22 2,22"/></svg>';
+      if (shape === 'Cross') return '<svg viewBox="0 0 24 24"><path d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7V2z"/></svg>';
+      if (shape === 'Square') return '<svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20"/></svg>';
+      if (shape === 'Star') return '<svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9"/></svg>';
+      return '';
+    }
+
+    function createCardElement(card) {
+      const cardDiv = document.createElement('div');
+      cardDiv.className = 'card-whot';
+
+      if (card.number === 20) {
+        cardDiv.innerHTML = `
+          <div class="corner top-left"><span class="corner-num">20</span><span class="corner-icon">W</span></div>
+          <div class="center-symbol"><div class="whot-text">Whot<br>Whot</div></div>
+          <div class="corner bottom-right"><span class="corner-num">20</span><span class="corner-icon">W</span></div>
+        `;
+      } else {
+        const svgIcon = getShapeSVG(card.shape);
+        cardDiv.innerHTML = `
+          <div class="corner top-left"><span class="corner-num">${card.number}</span><span class="corner-icon">${svgIcon}</span></div>
+          <div class="center-symbol">${svgIcon}</div>
+          <div class="corner bottom-right"><span class="corner-num">${card.number}</span><span class="corner-icon">${svgIcon}</span></div>
+        `;
+      }
+      return cardDiv;
+    }
+
+    function renderGame(state) {
+      const topContainer = document.getElementById('topCard');
+      topContainer.innerHTML = '';
+      topContainer.appendChild(createCardElement(state.topCard));
+
+      const isMyTurn = state.players[state.turnIndex] === userId;
+      let turnText = isMyTurn ? "YOUR TURN!" : "Opponent's Turn";
+      if (state.requestedShape) turnText += ` (Requested: ${state.requestedShape})`;
+      document.getElementById('turnStatus').innerText = turnText;
+
+      const handContainer = document.getElementById('handContainer');
+      handContainer.innerHTML = '';
+      const myHand = state.hands[userId] || [];
+
+      myHand.forEach((card, index) => {
+        const cElem = createCardElement(card);
+        cElem.onclick = () => playCard(index, card.number === 20);
+        handContainer.appendChild(cElem);
+      });
+    }
+
+    function playCard(index, isWhot) {
+      if (isWhot) {
+        pendingWhotIndex = index;
+        whotModalObj.show();
+      } else {
+        socket.emit('playCard', { roomId, userId, cardIndex: index, requestedShape: null });
+      }
+    }
+
+    function confirmWhot(shape) {
+      whotModalObj.hide();
+      socket.emit('playCard', { roomId, userId, cardIndex: pendingWhotIndex, requestedShape: shape });
+      pendingWhotIndex = null;
+    }
+
+    function drawCard() {
+      socket.emit('drawCard', { roomId, userId });
+    }
+    // Automatically re-register room connection on browser refresh or socket reconnect
+  </script>
+</body>
+</html>

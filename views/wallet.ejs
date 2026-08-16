@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wallet - Naija Whot</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>body { background-color: #121212; color: #fff; }</style>
+</head>
+<body>
+  <div class="container my-5 col-md-6">
+    <div class="card bg-dark text-white border-secondary p-4 mb-4">
+      <h3 class="text-warning">Wallet & Cashout</h3>
+      <p>Current Points Balance: <strong class="text-success"><%= user.pointsBalance %></strong></p>
+      <hr class="border-secondary">
+      
+      <!-- Deposit Form -->
+      <h5>Deposit Points (1 NGN = 1 Point)</h5>
+      <div class="input-group mb-3">
+        <input type="number" id="depositAmount" class="form-control bg-dark text-white border-secondary" placeholder="Amount (min 100)">
+        <button class="btn btn-warning" onclick="initDeposit()">Paystack Deposit</button>
+      </div>
+
+      <hr class="border-secondary">
+
+      <!-- Crypto Withdrawal -->
+      <h5>Withdraw via FaucetPay (Crypto)</h5>
+      <div class="mb-3">
+        <input type="text" id="fpAddress" class="form-control bg-dark text-white border-secondary mb-2" placeholder="FaucetPay Address/Email">
+        <input type="number" id="fpAmount" class="form-control bg-dark text-white border-secondary mb-2" placeholder="Points (min 1000)">
+        <button class="btn btn-outline-warning w-100" onclick="withdrawFP()">Request USDT Payout</button>
+      </div>
+
+      <hr class="border-secondary">
+
+      <!-- Bank Withdrawal -->
+      <!--<h5>Withdraw via Bank Transfer / OPay</h5>
+      <div class="mb-3">
+        <input type="text" id="bankCode" class="form-control bg-dark text-white border-secondary mb-2" placeholder="Bank Code (e.g. 999992)">
+        <input type="text" id="accNum" class="form-control bg-dark text-white border-secondary mb-2" placeholder="Account Number">
+        <input type="number" id="bankAmount" class="form-control bg-dark text-white border-secondary mb-2" placeholder="Points (min 1000)">
+        <button class="btn btn-outline-success w-100" onclick="withdrawBank()">Request Bank Payout</button>
+      </div>
+    </div> -->
+    <a href="/dashboard" class="btn btn-secondary w-100">Back to Dashboard</a>
+  </div>
+
+  <script>
+    async function initDeposit() {
+      const amount = document.getElementById('depositAmount').value;
+      const res = await fetch('/api/deposit/paystack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount })
+      });
+      const data = await res.json();
+      if(data.authorization_url) window.location.href = data.authorization_url;
+      else alert(data.error);
+    }
+
+    async function withdrawFP() {
+      const address = document.getElementById('fpAddress').value;
+      const amount = document.getElementById('fpAmount').value;
+      const res = await fetch('/api/withdraw/faucetpay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, amount })
+      });
+      const data = await res.json();
+      alert(data.message || data.error);
+    }
+
+    async function withdrawBank() {
+      const bankCode = document.getElementById('bankCode').value;
+      const accountNumber = document.getElementById('accNum').value;
+      const amount = document.getElementById('bankAmount').value;
+      const res = await fetch('/api/withdraw/opay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bankCode, accountNumber, amount })
+      });
+      const data = await res.json();
+      alert(data.message || data.error);
+    }
+  </script>
+</body>
+</html>
