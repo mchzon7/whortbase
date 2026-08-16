@@ -59,6 +59,7 @@ const adminGuard = (req, res, next) => {
 };
 
 // HTTP Routes
+app.get('/', (req, res) => res.render('login', { error: null }));
 app.get('/login', (req, res) => res.render('login', { error: null }));
 app.get('/register', (req, res) => res.render('register', { error: null }));
 
