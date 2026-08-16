@@ -109,6 +109,44 @@ const telegramOnlyAuth = (req, res, next) => {
   res.render('game', { roomId: req.params.roomId, user: req.user });
 });*/
 // HTTP Routes
+
+// DELETE Route: Remove Host Room & Cleanup
+app.delete('/api/rooms/delete/:roomId', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+
+    // 1. Find the host room session in database
+    const session = await GameSession.findOne({ roomId });
+    if (!session) {
+      return res.status(404).json({ success: false, message: 'Host room not found.' });
+    }
+
+    // 2. Refund points to any joined players if the game hasn't finished
+    if (session.status === 'waiting' && session.players.length > 0) {
+      for (const userId of session.players) {
+        await User.findByIdAndUpdate(userId, {
+          $inc: { pointsBalance: session.stake }
+        });
+      }
+    }
+
+    // 3. Remove active memory session if running
+    if (activeGames[roomId]) {
+      io.to(roomId).emit('playerForfeited', { 
+        message: 'This host room was deleted by the host/admin.' 
+      });
+      delete activeGames[roomId];
+    }
+
+    // 4. Delete room session from MongoDB
+    await GameSession.deleteOne({ roomId });
+
+    return res.json({ success: true, message: 'Host deleted successfully.' });
+  } catch (err) {
+    console.error('Error deleting host room:', err);
+    return res.status(500).json({ success: false, message: 'Server error during deletion.' });
+  }
+});
 app.get('/', (req, res) => res.render('login', { error: null }));
 app.get('/login', (req, res) => res.render('login', { error: null }));
 app.get('/register', (req, res) => res.render('register', { error: null }));
