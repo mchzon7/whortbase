@@ -58,8 +58,73 @@ const adminGuard = (req, res, next) => {
   else res.status(403).send('Forbidden');
 };
 
+// Helper: Cryptographically verify Telegram initData
+function parseAndVerifyTelegramData(initData, botToken) {
+  if (!initData) return null;
+
+  const urlParams = new URLSearchParams(initData);
+  const hash = urlParams.get('hash');
+  urlParams.delete('hash');
+
+  // Sort remaining parameters alphabetically
+  const dataCheckString = Array.from(urlParams.entries())
+    .map(([key, value]) => `${key}=${value}`)
+    .sort()
+    .join('\n');
+
+  // Calculate HMAC-SHA256 signature
+  const secretKey = crypto.createHmac('sha256', 'WebAppData')
+    .update(botToken)
+    .digest();
+
+  const calculatedHash = crypto.createHmac('sha256', secretKey)
+    .update(dataCheckString)
+    .digest('hex');
+
+  if (calculatedHash !== hash) return null;
+
+  // Extract parsed user object
+  const userParam = urlParams.get('user');
+  return userParam ? JSON.parse(userParam) : null;
+}
+
+// Route: Handle Auto-Signup & Login from Telegram Bot
+app.post('/auth/telegram', async (req, res) => {
+  try {
+    const { initData } = req.body;
+    const tgUser = parseAndVerifyTelegramData(initData, process.env.TELEGRAM_BOT_TOKEN);
+
+    if (!tgUser) {
+      return res.status(401).json({ success: false, message: 'Invalid Telegram data' });
+    }
+
+    // Auto-Signup / Find existing user by telegramId
+    let user = await User.findOne({ telegramId: tgUser.id.toString() });
+
+    if (!user) {
+      user = await User.create({
+        telegramId: tgUser.id.toString(),
+        username: tgUser.username || `user_${tgUser.id}`,
+        firstName: tgUser.first_name || 'Player',
+        pointsBalance: 1000 // Welcome bonus
+      });
+    } else if (tgUser.username && user.username !== tgUser.username) {
+      // Sync username if changed
+      user.username = tgUser.username;
+      await user.save();
+    }
+
+    // Set Express Session
+    req.session.userId = user._id;
+
+    return res.json({ success: true, user });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server authentication error' });
+  }
+});
+
 // HTTP Routes
-app.get('/', (req, res) => res.render('login', { error: null }));
+app.get('/', (req, res) => res.redirect('/dashboard', { error: null }));
 app.get('/login', (req, res) => res.render('login', { error: null }));
 app.get('/register', (req, res) => res.render('register', { error: null }));
 
