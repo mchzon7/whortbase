@@ -8,8 +8,6 @@ const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const bodyParser = require('body-parser');
-const crypto = require('crypto');
-
 
 const User = require('./models/User');
 const Transaction = require('./models/Transaction');
@@ -60,53 +58,6 @@ const adminGuard = (req, res, next) => {
   else res.status(403).send('Forbidden');
 };
 
-// Middleware: Restrict access strictly to launches from the Telegram Bot
-const telegramOnlyAuth = (req, res, next) => {
-  const initData = req.headers['x-telegram-init-data'] || req.query.tgWebAppStartParam;
-
-  // Check if request is coming from Telegram Mini App
-  if (req.headers['user-agent'] && req.headers['user-agent'].includes('Telegram')) {
-    return next();
-  }
-
-  // If accessed directly via browser (Chrome, Safari, etc.), deny access
-  return res.status(403).send(`
-    <div style="text-align:center; padding:50px; font-family:sans-serif; background:#0b1d13; color:#fff; height:100vh;">
-      <h2>Access Denied</h2>
-      <p>This web application can only be launched directly from our Telegram Bot.</p>
-    </div>
-  `);
-};
-
-
-
-// Function to verify Telegram initData
-function verifyTelegramWebAppData(telegramInitData) {
-  if (!telegramInitData) return false;
-
-  const urlParams = new URLSearchParams(telegramInitData);
-  const hash = urlParams.get('hash');
-  urlParams.delete('hash');
-
-  // Sort remaining parameters alphabetically
-  const dataCheckString = Array.from(urlParams.entries())
-    .map(([key, value]) => `${key}=${value}`)
-    .sort()
-    .join('\n');
-
-  // Generate secret key using SHA256 of bot token
-  const secretKey = crypto.createHmac('sha256', 'WebAppData')
-    .update(process.env.TELEGRAM_BOT_TOKEN)
-    .digest();
-
-  // Calculate HMAC-SHA256 signature
-  const calculatedHash = crypto.createHmac('sha256', secretKey)
-    .update(dataCheckString)
-    .digest('hex');
-
-  return calculatedHash === hash;
-}
-
 // HTTP Routes
 app.get('/', (req, res) => res.render('login', { error: null }));
 app.get('/login', (req, res) => res.render('login', { error: null }));
@@ -135,6 +86,44 @@ app.post('/login', async (req, res) => {
   }
 });
 
+// DELETE Route: Remove Host Room & Cleanup
+app.delete('/api/rooms/delete/:roomId', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+
+    // 1. Find the host room session in database
+    const session = await GameSession.findOne({ roomId });
+    if (!session) {
+      return res.status(404).json({ success: false, message: 'Host room not found.' });
+    }
+
+    // 2. Refund points to any joined players if the game hasn't finished
+    if (session.status === 'waiting' && session.players.length > 0) {
+      for (const userId of session.players) {
+        await User.findByIdAndUpdate(userId, {
+          $inc: { pointsBalance: session.stake }
+        });
+      }
+    }
+
+    // 3. Remove active memory session if running
+    if (activeGames[roomId]) {
+      io.to(roomId).emit('playerForfeited', { 
+        message: 'This host room was deleted by the host/admin.' 
+      });
+      delete activeGames[roomId];
+    }
+
+    // 4. Delete room session from MongoDB
+    await GameSession.deleteOne({ roomId });
+
+    return res.json({ success: true, message: 'Host deleted successfully.' });
+  } catch (err) {
+    console.error('Error deleting host room:', err);
+    return res.status(500).json({ success: false, message: 'Server error during deletion.' });
+  }
+});
+
 app.get('/dashboard', authGuard, async (req, res) => {
   const rooms = await GameSession.find({ status: 'waiting' }).populate('host', 'username');
   res.render('dashboard', { user: req.user, rooms });
@@ -151,8 +140,8 @@ app.get('/admin', authGuard, adminGuard, async (req, res) => {
   res.render('admin', { users, txns, houseRevenue: totalRake[0]?.total || 0 });
 });
 
-app.get('/game/:roomId', authGuard,telegramOnlyAuth, async (req, res) => {
-  const room = await GameSession.findOne({ roomId: req.params.roomId, user: req.user });
+app.get('/game/:roomId', authGuard, async (req, res) => {
+  const room = await GameSession.findOne({ roomId: req.params.roomId });
   if (!room) return res.redirect('/dashboard');
   res.render('game', { user: req.user, roomId: req.params.roomId });
 });
