@@ -181,7 +181,7 @@ app.get('/dashboard', authGuard, telegramOnlyGuard, async (req, res) => {
   res.render('dashboard', { user: req.user, rooms });
 });
 
-app.get('/wallet', authGuard, (req, res) => res.render('wallet', { user: req.user }));
+app.get('/wallet', authGuard,telegramOnlyGuard, (req, res) => res.render('wallet', { user: req.user }));
 // Add payment callback verification route
 app.get('/wallet/verify', authGuard, paystackCtrl.verifyDeposit);
 
@@ -192,7 +192,7 @@ app.get('/admin', authGuard, adminGuard, async (req, res) => {
   res.render('admin', { users, txns, houseRevenue: totalRake[0]?.total || 0 });
 });
 
-app.get('/game/:roomId', authGuard, async (req, res) => {
+app.get('/game/:roomId', authGuard,telegramOnlyGuard, async (req, res) => {
   const room = await GameSession.findOne({ roomId: req.params.roomId });
   if (!room) return res.redirect('/dashboard');
   res.render('game', { user: req.user, roomId: req.params.roomId });
