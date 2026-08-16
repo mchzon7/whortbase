@@ -8,6 +8,7 @@ const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const bodyParser = require('body-parser');
+const crypto = require('crypto');
 
 const User = require('./models/User');
 const Transaction = require('./models/Transaction');
@@ -58,6 +59,55 @@ const adminGuard = (req, res, next) => {
   else res.status(403).send('Forbidden');
 };
 
+// Function to verify Telegram initData
+function verifyTelegramWebAppData(telegramInitData) {
+  if (!telegramInitData) return false;
+
+  const urlParams = new URLSearchParams(telegramInitData);
+  const hash = urlParams.get('hash');
+  urlParams.delete('hash');
+
+  // Sort remaining parameters alphabetically
+  const dataCheckString = Array.from(urlParams.entries())
+    .map(([key, value]) => `${key}=${value}`)
+    .sort()
+    .join('\n');
+
+  // Generate secret key using SHA256 of bot token
+  const secretKey = crypto.createHmac('sha256', 'WebAppData')
+    .update(process.env.TELEGRAM_BOT_TOKEN)
+    .digest();
+
+  // Calculate HMAC-SHA256 signature
+  const calculatedHash = crypto.createHmac('sha256', secretKey)
+    .update(dataCheckString)
+    .digest('hex');
+
+  return calculatedHash === hash;
+}
+
+// Middleware: Restrict access strictly to launches from the Telegram Bot
+const telegramOnlyAuth = (req, res, next) => {
+  const initData = req.headers['x-telegram-init-data'] || req.query.tgWebAppStartParam;
+
+  // Check if request is coming from Telegram Mini App
+  if (req.headers['user-agent'] && req.headers['user-agent'].includes('Telegram')) {
+    return next();
+  }
+
+  // If accessed directly via browser (Chrome, Safari, etc.), deny access
+  return res.status(403).send(`
+    <div style="text-align:center; padding:50px; font-family:sans-serif; background:#0b1d13; color:#fff; height:100vh;">
+      <h2>Access Denied</h2>
+      <p>This web application can only be launched directly from our Telegram Bot.</p>
+    </div>
+  `);
+};
+
+// Apply middleware to your game or app routes
+/*app.get('/game/:roomId', telegramOnlyAuth, (req, res) => {
+  res.render('game', { roomId: req.params.roomId, user: req.user });
+});*/
 // HTTP Routes
 app.get('/', (req, res) => res.render('login', { error: null }));
 app.get('/login', (req, res) => res.render('login', { error: null }));
@@ -102,8 +152,8 @@ app.get('/admin', authGuard, adminGuard, async (req, res) => {
   res.render('admin', { users, txns, houseRevenue: totalRake[0]?.total || 0 });
 });
 
-app.get('/game/:roomId', authGuard, async (req, res) => {
-  const room = await GameSession.findOne({ roomId: req.params.roomId });
+app.get('/game/:roomId', authGuard,telegramOnlyAuth, async (req, res) => {
+  const room = await GameSession.findOne({ roomId: req.params.roomId, user: req.user });
   if (!room) return res.redirect('/dashboard');
   res.render('game', { user: req.user, roomId: req.params.roomId });
 });
@@ -343,9 +393,10 @@ socket.on('leaveRoom', async ({ roomId, userId }) => {
 });
 
 // Utility to score remaining hand values
+// Calculate total card value remaining in a player's hand
 function calculateHandScore(hand) {
   return hand.reduce((total, card) => {
-    // Star cards count as double face value in Whot knockout mode
+    // Star cards count as double face value in Whot
     if (card.shape === 'Star') {
       return total + (card.number * 2);
     }
@@ -353,48 +404,19 @@ function calculateHandScore(hand) {
   }, 0);
 }
 
-// Function to handle match payouts and game completion
-async function resolveGameVictory(roomId, winnerId) {
+// Handles knockout logic when a player empties their hand
+async function handleRoundEnd(roomId, roundWinnerId) {
   const gameState = activeGames[roomId];
   if (!gameState) return;
 
-  try {
-    // 1. Calculate total pot from room stake and max players
-    const totalPot = gameState.stake * gameState.maxPlayers;
-
-    // 2. Credit the winner's account balance
-    await User.findByIdAndUpdate(winnerId, {
-      $inc: { pointsBalance: totalPot }
-    });
-
-    // 3. Update the game session in database
-    await GameSession.findOneAndUpdate(
-      { roomId },
-      { status: 'completed', winner: winnerId }
-    );
-
-    // 4. Notify all connected sockets in the room
-    io.to(roomId).emit('gameOver', { winnerId, totalPot });
-
-    // 5. Clean up the active game state from server memory
-    delete activeGames[roomId];
-  } catch (err) {
-    console.error("Error resolving game victory:", err);
-  }
-}
-
-async function handleRoundEnd(roomId, winnerId) {
-  const gameState = activeGames[roomId];
-  if (!gameState) return;
-
-  // 1. Calculate scores for all remaining non-winning players
   const scores = {};
   let highestScore = -1;
   let playerToEliminate = null;
 
+  // Calculate remaining points for all non-winners
   gameState.players.forEach(pId => {
-    if (pId !== winnerId) {
-      const score = calculateHandScore(gameState.hands[pId]);
+    if (pId !== roundWinnerId) {
+      const score = calculateHandScore(gameState.hands[pId] || []);
       scores[pId] = score;
 
       if (score > highestScore) {
@@ -402,33 +424,34 @@ async function handleRoundEnd(roomId, winnerId) {
         playerToEliminate = pId;
       }
     } else {
-      scores[pId] = 0; // Winner has 0 points
+      scores[pId] = 0; // Round winner has 0 points
     }
   });
 
-  // 2. Remove the eliminated player from the room roster
+  // Eliminate player with highest card score
   gameState.players = gameState.players.filter(id => id !== playerToEliminate);
 
-  // 3. Notify all players of the elimination and scores
+  // Notify all room members of round scores and elimination
   io.to(roomId).emit('roundEnded', {
-    winnerId,
+    roundWinnerId,
     scores,
     eliminatedPlayerId: playerToEliminate,
     remainingPlayersCount: gameState.players.length
   });
 
-  // 4. Check if game is over (only 1 player remaining) or reset for next round
+  // Check if only 1 player remains (Ultimate Tournament Winner)
   if (gameState.players.length === 1) {
     const ultimateWinnerId = gameState.players[0];
     await resolveGameVictory(roomId, ultimateWinnerId);
   } else {
-    // Re-deal deck and setup next round for the remaining 3 (or 2) players
+    // Wait 4 seconds, then start next round with remaining players
     setTimeout(() => {
       startNextRound(roomId);
-    }, 4000); // 4-second delay so players can see elimination scores
+    }, 4000);
   }
 }
 
+// Resets hands and deck for the remaining tournament players
 function startNextRound(roomId) {
   const gameState = activeGames[roomId];
   if (!gameState) return;
@@ -448,6 +471,63 @@ function startNextRound(roomId) {
   gameState.pendingDraw = 0;
 
   io.to(roomId).emit('gameStateUpdate', gameState);
+}
+
+// Function to handle match payouts and game completion
+// Function to resolve 4-player tournament victory with 70/30 commission split
+async function resolveGameVictory(roomId, ultimateWinnerId) {
+  const gameState = activeGames[roomId];
+  if (!gameState) return;
+
+  try {
+    // 1. Calculate total stake pool (Stake per player * Max initial players)
+    const totalPot = gameState.stake * gameState.maxPlayers; // e.g., 100 * 4 = 400 points
+
+    // 2. Calculate 70/30 pot distribution
+    const ownerCommission = totalPot * 0.20; // 20% site owner share (120 points)
+    const winnerPayout = totalPot * 0.80;    // 80% winner share (280 points)
+
+    // 3. Credit the ultimate winner with 70% of the pot
+    await User.findByIdAndUpdate(ultimateWinnerId, {
+      $inc: { pointsBalance: winnerPayout }
+    });
+
+    // 4. Record platform earnings (Optional: create a commission transaction log)
+    if (typeof PlatformEarning !== 'undefined') {
+      await PlatformEarning.create({
+        roomId,
+        totalPot,
+        ownerShare: ownerCommission,
+        winnerShare: winnerPayout,
+        winnerId: ultimateWinnerId,
+        createdAt: new Date()
+      });
+    }
+
+    // 5. Mark the game session as completed in database
+    await GameSession.findOneAndUpdate(
+      { roomId },
+      { 
+        status: 'completed', 
+        winner: ultimateWinnerId,
+        ownerCommission: ownerCommission,
+        winnerPayout: winnerPayout
+      }
+    );
+
+    // 6. Broadcast game over to all clients in the room
+    io.to(roomId).emit('gameOver', { 
+      winnerId: ultimateWinnerId, 
+      winnerPayout,
+      ownerCommission,
+      totalPot 
+    });
+
+    // 7. Clean up memory
+    delete activeGames[roomId];
+  } catch (err) {
+    console.error("Error resolving game victory split:", err);
+  }
 }
 
 server.listen(process.env.PORT || 3000, () => console.log('Server running on port 3000'));
