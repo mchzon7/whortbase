@@ -183,7 +183,7 @@ app.get('/dashboard', authGuard, telegramOnlyGuard, async (req, res) => {
 
 app.get('/wallet', authGuard,telegramOnlyGuard, (req, res) => res.render('wallet', { user: req.user }));
 // Add payment callback verification route
-app.get('/wallet/verify', authGuard, paystackCtrl.verifyDeposit);
+app.get('/wallet/verify', authGuard,telegramOnlyGuard, paystackCtrl.verifyDeposit);
 
 app.get('/admin', authGuard, adminGuard, async (req, res) => {
   const users = await User.find();
@@ -200,9 +200,9 @@ app.get('/game/:roomId', authGuard,telegramOnlyGuard, async (req, res) => {
 
 // API Endpoints for Wallet Operations
 app.post('/api/deposit/paystack', authGuard, paystackCtrl.initializeDeposit);
-app.post('/api/webhook/paystack', paystackCtrl.webhook);
-app.post('/api/withdraw/faucetpay', authGuard, faucetpayCtrl.withdrawCrypto);
-app.post('/api/withdraw/opay', authGuard, opayCtrl.withdrawBank);
+app.post('/api/webhook/paystack',telegramOnlyGuard, paystackCtrl.webhook);
+app.post('/api/withdraw/faucetpay', authGuard,telegramOnlyGuard, faucetpayCtrl.withdrawCrypto);
+app.post('/api/withdraw/opay', authGuard,telegramOnlyGuard, opayCtrl.withdrawBank);
 
 // Socket.io Real-Time Game Mechanics & Engine State Manager
 const activeGames = {}; // In-memory runtime state
