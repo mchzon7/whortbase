@@ -8,7 +8,7 @@ const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const bodyParser = require('body-parser');
-const crypto = require('crypto');
+
 
 const User = require('./models/User');
 const Transaction = require('./models/Transaction');
@@ -59,6 +59,26 @@ const adminGuard = (req, res, next) => {
   else res.status(403).send('Forbidden');
 };
 
+// Middleware: Restrict access strictly to launches from the Telegram Bot
+const telegramOnlyAuth = (req, res, next) => {
+  const initData = req.headers['x-telegram-init-data'] || req.query.tgWebAppStartParam;
+
+  // Check if request is coming from Telegram Mini App
+  if (req.headers['user-agent'] && req.headers['user-agent'].includes('Telegram')) {
+    return next();
+  }
+
+  // If accessed directly via browser (Chrome, Safari, etc.), deny access
+  return res.status(403).send(`
+    <div style="text-align:center; padding:50px; font-family:sans-serif; background:#0b1d13; color:#fff; height:100vh;">
+      <h2>Access Denied</h2>
+      <p>This web application can only be launched directly from our Telegram Bot.</p>
+    </div>
+  `);
+};
+
+
+
 // Function to verify Telegram initData
 function verifyTelegramWebAppData(telegramInitData) {
   if (!telegramInitData) return false;
@@ -86,28 +106,6 @@ function verifyTelegramWebAppData(telegramInitData) {
   return calculatedHash === hash;
 }
 
-// Middleware: Restrict access strictly to launches from the Telegram Bot
-const telegramOnlyAuth = (req, res, next) => {
-  const initData = req.headers['x-telegram-init-data'] || req.query.tgWebAppStartParam;
-
-  // Check if request is coming from Telegram Mini App
-  if (req.headers['user-agent'] && req.headers['user-agent'].includes('Telegram')) {
-    return next();
-  }
-
-  // If accessed directly via browser (Chrome, Safari, etc.), deny access
-  return res.status(403).send(`
-    <div style="text-align:center; padding:50px; font-family:sans-serif; background:#0b1d13; color:#fff; height:100vh;">
-      <h2>Access Denied</h2>
-      <p>This web application can only be launched directly from our Telegram Bot.</p>
-    </div>
-  `);
-};
-
-// Apply middleware to your game or app routes
-/*app.get('/game/:roomId', telegramOnlyAuth, (req, res) => {
-  res.render('game', { roomId: req.params.roomId, user: req.user });
-});*/
 // HTTP Routes
 app.get('/', (req, res) => res.render('login', { error: null }));
 app.get('/login', (req, res) => res.render('login', { error: null }));
