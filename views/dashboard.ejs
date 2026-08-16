@@ -181,7 +181,8 @@
     try {
       const response = await fetch(`/api/rooms/delete/${targetRoomId}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        'x-telegram-init-data': initData
       });
 
       const result = await response.json();

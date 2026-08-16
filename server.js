@@ -199,7 +199,7 @@ app.get('/game/:roomId', authGuard, async (req, res) => {
 });
 
 // API Endpoints for Wallet Operations
-app.post('/api/deposit/paystack', authGuard, paystackCtrl.initializeDeposit);
+app.post('/api/deposit/paystack', authGuard,telegramOnlyGuard, paystackCtrl.initializeDeposit);
 app.post('/api/webhook/paystack', paystackCtrl.webhook);
 app.post('/api/withdraw/faucetpay', authGuard, faucetpayCtrl.withdrawCrypto);
 app.post('/api/withdraw/opay', authGuard, opayCtrl.withdrawBank);

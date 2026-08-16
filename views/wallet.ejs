@@ -70,6 +70,7 @@
       const res = await fetch('/api/deposit/paystack', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        'x-telegram-init-data': initData,
         body: JSON.stringify({ amount })
       });
       const data = await res.json();
@@ -83,6 +84,7 @@
       const res = await fetch('/api/withdraw/faucetpay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        'x-telegram-init-data': initData,
         body: JSON.stringify({ address, amount })
       });
       const data = await res.json();
@@ -96,6 +98,7 @@
       const res = await fetch('/api/withdraw/opay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        'x-telegram-init-data': initData,
         body: JSON.stringify({ bankCode, accountNumber, amount })
       });
       const data = await res.json();
