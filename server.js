@@ -8,6 +8,7 @@ const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const bodyParser = require('body-parser');
+const crypto = require('crypto');
 
 const User = require('./models/User');
 const Transaction = require('./models/Transaction');
@@ -58,10 +59,52 @@ const adminGuard = (req, res, next) => {
   else res.status(403).send('Forbidden');
 };
 
+// Utility: Cryptographically verify Telegram initData
+function isTelegramInitDataValid(initData, botToken) {
+  if (!initData) return false;
+
+  const urlParams = new URLSearchParams(initData);
+  const hash = urlParams.get('hash');
+  urlParams.delete('hash');
+
+  const dataCheckString = Array.from(urlParams.entries())
+    .map(([key, value]) => `${key}=${value}`)
+    .sort()
+    .join('\n');
+
+  const secretKey = crypto.createHmac('sha256', 'WebAppData')
+    .update(botToken)
+    .digest();
+
+  const calculatedHash = crypto.createHmac('sha256', secretKey)
+    .update(dataCheckString)
+    .digest('hex');
+
+  return calculatedHash === hash;
+}
+
+// Middleware: Block direct browser API access
+const telegramOnlyGuard = (req, res, next) => {
+  const initData = req.headers['x-telegram-init-data'] || req.query.tgWebAppStartParam;
+
+  if (initData && isTelegramInitDataValid(initData, process.env.TELEGRAM_BOT_TOKEN)) {
+    return next();
+  }
+
+  // Reject unauthorized direct browser requests
+  return res.status(403).json({
+    success: false,
+    message: 'Access Denied: Application must be opened inside Telegram.'
+  });
+};
+
+// Apply to API routes
+app.use('/api/', telegramOnlyGuard);
+
 // HTTP Routes
-app.get('/', (req, res) => res.render('login', { error: null }));
-app.get('/login', (req, res) => res.render('login', { error: null }));
-app.get('/register', (req, res) => res.render('register', { error: null }));
+app.get('/',telegramOnlyGuard, (req, res) => res.render('login', { error: null }));
+app.get('/login',telegramOnlyGuard, (req, res) => res.render('login', { error: null }));
+app.get('/register', telegramOnlyGuard, (req, res) => res.render('register', { error: null }));
 
 app.post('/register', async (req, res) => {
   try {
@@ -124,7 +167,7 @@ app.delete('/api/rooms/delete/:roomId', async (req, res) => {
   }
 });
 
-app.get('/dashboard', authGuard, async (req, res) => {
+app.get('/dashboard', authGuard, telegramOnlyGuard, async (req, res) => {
   const rooms = await GameSession.find({ status: 'waiting' }).populate('host', 'username');
   res.render('dashboard', { user: req.user, rooms });
 });
