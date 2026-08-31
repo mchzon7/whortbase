@@ -6,6 +6,7 @@ const gameSessionSchema = new mongoose.Schema({
   maxPlayers: { type: Number, required: true },
   host: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   players: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  hiddenBy:[{ type: mongoose.Schema.Types.ObjectId, ref: 'User'}],
   status: { type: String, enum: ['waiting', 'active', 'completed'], default: 'waiting' },
   winner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   houseRakeGenerated: { type: Number, default: 0 }

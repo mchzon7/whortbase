@@ -1,23 +1,75 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login - Naija Whot</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>body { background-color: #121212; color: #fff; }</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Authenticating...</title>
+  <!-- Telegram WebApp JS SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      background-color: #121212;
+      color: #ffffff;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border-left-color: #0088cc;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .status-text {
+      margin-top: 15px;
+      font-size: 16px;
+    }
+  </style>
 </head>
-<body class="d-flex align-items-center vh-100">
-  <div class="container col-md-4">
-    <div class="card bg-dark text-white border-secondary p-4">
-      <h3 class="text-center text-warning mb-3">Naija Whot Login</h3>
-      <% if(error) { %><div class="alert alert-danger"><%= error %></div><% } %>
-      <form action="/login" method="POST">
-        <div class="mb-3"><label>Email</label><input type="email" name="email" class="form-control bg-dark text-white border-secondary" required></div>
-        <div class="mb-3"><label>Password</label><input type="password" name="password" class="form-control bg-dark text-white border-secondary" required></div>
-        <button class="btn btn-warning w-100 fw-bold">Login</button>
-      </form>
-      <a href="/register" class="text-secondary text-center d-block mt-3">Create account</a>
-    </div>
-  </div>
+<body>
+
+  <div class="spinner"></div>
+  <div class="status-text" id="status">Connecting to Telegram...</div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+  if (window.Telegram && window.Telegram.WebApp) {
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+
+    // 1. Get referral code from Telegram Direct Link startapp parameter
+    const refCode = tg.initDataUnsafe?.start_param || null;
+
+    // 2. Pass initData + refCode to your backend authentication endpoint
+    try {
+      const res = await fetch('/api/auth/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          initData: tg.initData,
+          refCode: refCode
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        window.location.href = data.redirectTo;
+      }
+    } catch (err) {
+      console.error('Auth sync error:', err);
+    }
+  }
+});
+  </script>
 </body>
 </html>

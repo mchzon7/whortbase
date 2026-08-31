@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lobby - Naija Whot</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="/socket.io/socket.io.js"></script>
   <style>body { background-color: #121212; color: #fff; }</style>
@@ -15,6 +16,13 @@
       <a href="/wallet" class="btn btn-sm btn-outline-warning me-2">Wallet</a>
       <% if(user.role === 'admin') { %><a href="/admin" class="btn btn-sm btn-outline-danger me-2">Admin</a><% } %>
     </div>
+    <div class="referral-card">
+      <h3>Invite & Earn</h3>
+      <p>Share your referral link. Earn <strong>50 points</strong> when your referral deposits 500 points or more!</p>
+      
+      <input type="text" class="form-control bg-dark text-white border-secondary mb-2" id="refLink" value="https://t.me/Bwootbot/bwoot?startapp=<%= user.referralCode %>"  readonly />
+      <button class="btn btn-outline-warning w-100" onclick="copyReferralLink()">Copy Link</button>
+    </div>
   </nav>
 
   <div class="container my-4">
@@ -24,44 +32,24 @@
           <h4>Active Game Rooms</h4>
           <button class="btn btn-warning fw-bold" data-bs-toggle="modal" data-bs-target="#createRoomModal">Host Table</button>
         </div>
-        <div class="row">
+
+        <!-- Dynamic Real-Time Room List Container -->
+        <div class="row" id="roomListContainer">
           <% rooms.forEach(room => { %>
-            <div class="col-md-6 mb-3">
+            <div class="col-md-6 mb-3" id="room-card-<%= room.roomId %>">
               <div class="card bg-dark border-secondary text-white p-3">
                 <h5>Host: <%= room.host ? room.host.username : 'Unknown' %></h5>
                 <p class="mb-1">Stake: <span class="text-warning"><%= room.stake %> Points</span></p>
-                <p class="mb-2">Players: <%= room.players.length %> / <%= room.maxPlayers %></p>
-                <button onclick="joinRoom('<%= room.roomId %>')" class="btn btn-outline-warning btn-sm w-100">Join Table</button>
-                <!-- Host / Room Item Example -->
-                <div class="d-flex justify-content-between align-items-center p-3 bg-dark text-white rounded mb-2 border border-secondary">
+                <p class="mb-2">Players: <span id="players-count-<%= room.roomId %>"><%= room.players.length %></span> / <%= room.maxPlayers %></p>
+                <button onclick="promptConnectionWarning('<%= room.roomId %>')" class="btn btn-outline-warning btn-sm w-100 mb-2">Join Table</button>
+                
+                <div class="d-flex justify-content-between align-items-center p-2 bg-dark text-white rounded border border-secondary">
                   <div>
-                    <strong>Host Room ID: <%= room.roomId %></strong>
-                    <span class="badge bg-primary ms-2"><%= room.stake %> Points</span>
+                    <small>Room ID: <%= room.roomId %></small>
                   </div>
-                  
-                  <!-- Delete Host Button -->
                   <button class="btn btn-danger btn-sm fw-bold" onclick="showDeleteHostModal('<%= room.roomId %>')">
-                    🗑️ Delete Host
+                    🗑️ Delete
                   </button>
-                </div>
-
-                <!-- Delete Confirmation Modal -->
-                <div class="modal fade" id="deleteHostModal" tabindex="-1">
-                  <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content bg-dark text-white border-danger">
-                      <div class="modal-header border-secondary">
-                        <h5 class="modal-title text-danger">Delete Host Room</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                      </div>
-                      <div class="modal-body">
-                        <p>Are you sure you want to delete this host room? Any active sessions will be terminated and refunded.</p>
-                      </div>
-                      <div class="modal-footer border-secondary">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-danger" onclick="confirmDeleteHost()">Delete Room</button>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -77,6 +65,44 @@
             <input type="text" id="chatInput" class="form-control bg-dark text-white border-secondary" placeholder="Type msg...">
             <button class="btn btn-warning" onclick="sendLobbyMsg()">Send</button>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INTERNET CONNECTIVITY WARNING MODAL -->
+  <div class="modal fade" id="connectivityModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark text-white border-warning">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title text-warning">⚠️ Connection Warning</h5>
+        </div>
+        <div class="modal-body">
+          <p>Please check your <strong>Internet Connectivity</strong> before joining the game.</p>
+          <p class="text-secondary small">Note: If you disconnect or remain offline for <strong>5 minutes</strong> during an active game, you will be automatically removed and your staked points will be forfeited.</p>
+        </div>
+        <div class="modal-footer border-secondary d-flex justify-content-between">
+          <button type="button" class="btn btn-outline-danger px-4" data-bs-dismiss="modal">Reject</button>
+          <button type="button" class="btn btn-warning px-4 fw-bold" onclick="acceptAndJoin()">Accept & Join</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Host Modal -->
+  <div class="modal fade" id="deleteHostModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark text-white border-danger">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title text-danger">Delete Host Room</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete this host room? Any active sessions will be terminated and refunded.</p>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" onclick="confirmDeleteHost()">Delete Room</button>
         </div>
       </div>
     </div>
@@ -118,6 +144,12 @@
 
     socket.emit('joinLobbyChat');
 
+    if (window.Telegram && window.Telegram.WebApp) {
+      window.Telegram.WebApp.ready();
+      window.Telegram.WebApp.expand();
+    }
+
+    // Create Room Logic
     function createRoom() {
       const stake = parseInt(document.getElementById('stakeSelect').value);
       const maxPlayers = parseInt(document.getElementById('maxPlayersSelect').value);
@@ -130,10 +162,63 @@
 
     socket.on('errorMsg', (msg) => alert(msg));
 
-    function joinRoom(roomId) {
-      window.location.href = `/game/${roomId}`;
+    // REAL-TIME LOBBY UPDATES (NO PAGE REFRESH REQUIRED)
+    socket.on('roomCreatedLobby', (data) => {
+      const container = document.getElementById('roomListContainer');
+      const card = document.createElement('div');
+      card.className = 'col-md-6 mb-3';
+      card.id = `room-card-${data.roomId}`;
+      card.innerHTML = `
+        <div class="card bg-dark border-secondary text-white p-3">
+          <h5>Host: ${data.hostName}</h5>
+          <p class="mb-1">Stake: <span class="text-warning">${data.stake} Points</span></p>
+          <p class="mb-2">Players: <span id="players-count-${data.roomId}">${data.currentPlayers}</span> / ${data.maxPlayers}</p>
+          <button onclick="promptConnectionWarning('${data.roomId}')" class="btn btn-outline-warning btn-sm w-100 mb-2">Join Table</button>
+          
+          <div class="d-flex justify-content-between align-items-center p-2 bg-dark text-white rounded border border-secondary">
+            <div>
+              <small>Room ID: ${data.roomId}</small>
+            </div>
+            <button class="btn btn-danger btn-sm fw-bold" onclick="showDeleteHostModal('${data.roomId}')">
+              🗑️ Delete
+            </button>
+          </div>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+
+    socket.on('roomUpdatedLobby', (data) => {
+      const countElement = document.getElementById(`players-count-${data.roomId}`);
+      if (countElement) {
+        countElement.innerText = data.currentPlayers;
+      }
+    });
+
+    socket.on('roomDeleted', (data) => {
+      const card = document.getElementById(`room-card-${data.roomId}`);
+      if (card) {
+        card.remove();
+      }
+    });
+
+    // INTERNET CONNECTIVITY PROMPT LOGIC
+    let targetJoinRoomId = null;
+    const connectivityModal = new bootstrap.Modal(document.getElementById('connectivityModal'));
+
+    function promptConnectionWarning(roomId) {
+      targetJoinRoomId = roomId;
+      connectivityModal.show();
     }
 
+    function acceptAndJoin() {
+      connectivityModal.hide();
+      if (targetJoinRoomId) {
+        window.location.href = `/game/${targetJoinRoomId}`;
+      }
+    }
+
+    // LOBBY CHAT
     function sendLobbyMsg() {
       const input = document.getElementById('chatInput');
       if (input.value) {
@@ -147,38 +232,45 @@
       chatBox.innerHTML += `<div><strong>${data.username}:</strong> ${data.msg}</div>`;
       chatBox.scrollTop = chatBox.scrollHeight;
     });
+
+    // DELETE HOST ROOM LOGIC
+    let targetRoomId = null;
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteHostModal'));
+
+    function showDeleteHostModal(roomId) {
+      targetRoomId = roomId;
+      deleteModal.show();
+    }
+
+    async function confirmDeleteHost() {
+      if (!targetRoomId) return;
+      try {
+        const response = await fetch(`/api/rooms/delete/${targetRoomId}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        if (result.success) {
+          // Dynamic DOM removal without requiring page refresh
+          const card = document.getElementById(`room-card-${targetRoomId}`);
+          if (card) card.remove();
+        } else {
+          alert('Failed to delete host: ' + result.message);
+        }
+      } catch (err) {
+        alert('Error connecting to server.');
+      } finally {
+        deleteModal.hide();
+      }
+    }
   </script>
   <script>
-  let targetRoomId = null;
-  const deleteModal = new bootstrap.Modal(document.getElementById('deleteHostModal'));
-
-  function showDeleteHostModal(roomId) {
-    targetRoomId = roomId;
-    deleteModal.show();
-  }
-
-  async function confirmDeleteHost() {
-    if (!targetRoomId) return;
-
-    try {
-      const response = await fetch(`/api/rooms/delete/${targetRoomId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        alert('Host room deleted successfully.');
-        window.location.reload();
-      } else {
-        alert('Failed to delete host: ' + result.message);
-      }
-    } catch (err) {
-      alert('Error connecting to server.');
-    } finally {
-      deleteModal.hide();
-    }
-  }
+function copyReferralLink() {
+  const input = document.getElementById('refLink');
+  input.select();
+  document.execCommand('copy');
+  alert('Referral link copied to clipboard!');
+}
 </script>
 </body>
 </html>
