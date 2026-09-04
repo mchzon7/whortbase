@@ -11,6 +11,7 @@
 </head>
 <body>
   <div class="container my-5 col-md-6">
+    <!-- Balance & Payment Operations Card -->
     <div class="card bg-dark text-white border-secondary p-4 mb-4">
       <h3 class="text-warning">Wallet & Cashout</h3>
       <p>Current Points Balance: <strong class="text-success"><%= user.pointsBalance %></strong></p>
@@ -19,9 +20,8 @@
       <h5>Deposit Points (1 NGN = 1 Point)</h5>
       <div class="input-group mb-3">
         <input type="number" id="depositAmount" class="form-control bg-dark text-white border-secondary" placeholder="Amount (min 100)">
-        <button class="btn btn-warning" onclick=" depositPaystack()">Paystack Deposit</button>
+        <button class="btn btn-warning" onclick="depositPaystack()">Paystack Deposit</button>
       </div>
-
       <hr class="border-secondary">
 
       <h5>Withdraw via FaucetPay (Crypto)</h5>
@@ -32,8 +32,29 @@
         <input type="number" id="fpAmount" class="form-control bg-dark text-white border-secondary mb-2" placeholder="Points (min 1000)">
         <button class="btn btn-outline-warning w-100" onclick="withdrawFP()">Request USDT Payout</button>
       </div>
+      <hr class="border-secondary">
     </div>
-    <a href="/dashboard" class="btn btn-secondary w-100">Back to Dashboard</a>
+
+    <!-- TimeWall Offerwall Card -->
+    <div class="card bg-dark text-white border-secondary p-4 mb-4 offerwall-section">
+      <h3 class="text-warning">Earn Free Points</h3>
+      <p>Complete tasks, surveys, and offers on TimeWall to earn instant points!</p>
+      
+      <button class="btn btn-outline-warning w-100" onclick="openTimeWall()">
+        Open TimeWall Offerwall
+      </button>
+    </div>
+
+    <!-- Referral System Card -->
+    <div class="card bg-dark text-white border-secondary p-4 mb-4 referral-card">
+      <h3 class="text-warning">Invite & Earn</h3>
+      <p>Share your referral link. Earn <strong>50 points</strong> when your referral deposits 500 points or more!</p>
+      
+      <input type="text" class="form-control bg-dark text-white border-secondary mb-2" id="refLink" value="https://t.me/Bwootbot/bwoot?startapp=<%= user.referralCode %>" readonly />
+      <button class="btn btn-outline-warning w-100" onclick="copyReferralLink()">Copy Link</button>
+    </div>
+
+    <a href="/dashboard" class="btn btn-secondary w-100 mb-5">Back to Dashboard</a>
   </div>
 
   <script>
@@ -129,6 +150,29 @@
         alert('Failed to connect to the server.');
       }
     }
+</script>
+<script>
+function copyReferralLink() {
+  const input = document.getElementById('refLink');
+  input.select();
+  document.execCommand('copy');
+  alert('Referral link copied to clipboard!');
+}
+</script>
+<script>
+function openTimeWall() {
+  const userId = "<%= user._id %>";
+  const publisherId = "<%= timewallID %>";
+  
+  // TimeWall Widget / App URL
+  const timewallUrl = `https://timewall.io/offerwall/${publisherId}?userID=${userId}`;
+
+  if (window.Telegram && window.Telegram.WebApp) {
+    window.Telegram.WebApp.openLink(timewallUrl);
+  } else {
+    window.open(timewallUrl, '_blank');
+  }
+}
 </script>
 </body>
 </html>

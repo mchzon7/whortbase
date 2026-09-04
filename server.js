@@ -16,6 +16,7 @@ const paystackCtrl = require('./controllers/paystack');
 const faucetpayCtrl = require('./controllers/faucetpay');
 const opayCtrl = require('./controllers/opay');
 const binanceCtrl = require('./controllers/binance');
+const timewallCtrl = require('./controllers/timewall');
 
 const app = express();
 const server = http.createServer(app);
@@ -140,6 +141,8 @@ app.post('/api/auth/telegram', async (req, res) => {
   }
 });
 
+//TIMEWALL
+app.get('/postback/timewall', timewallCtrl.handlePostback);
 // Logout Route
 app.get('/logout', (req, res) => {
   req.session.destroy(() => {
@@ -220,7 +223,7 @@ app.get('/dashboard', authGuard, async (req, res) => {
   res.render('dashboard', { user: req.user, rooms });
 });
 
-app.get('/wallet', authGuard, (req, res) => res.render('wallet', { user: req.user, procee: process.env.PAYSTACK_PUBLIC_KEY }));
+app.get('/wallet', authGuard, (req, res) => res.render('wallet', { user: req.user, procee: process.env.PAYSTACK_PUBLIC_KEY, timewallID: process.env.TIMEWALL_PUBLISHER_ID }));
 app.get('/wallet/verify', authGuard, paystackCtrl.verifyDeposit);
 
 app.get('/admin', authGuard, adminGuard, async (req, res) => {
