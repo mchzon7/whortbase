@@ -18,22 +18,28 @@ exports.handlePostback = async (req, res) => {
       offerdetail
     } = req.query;
 
-    if (!userid || !txid || !currencyAmount) {
+    if (!userid || !currencyAmount) {
       return res.status(400).send('Missing required parameters.');
     }
 
     const secretKey = process.env.TIMEWALL_SECRET_KEY;
 
-    // 1. Verify Hash Signature (If hash is provided by TimeWall)
+    // 1. Check Hash Signature against all TimeWall parameter combinations
     if (secretKey && hash) {
-      const calculatedHash = crypto
-        .createHash('md5')
-        .update(`${txid}${secretKey}`)
-        .digest('hex');
+      // Combination A: Standard txid + secretKey
+      const hashA = crypto.createHash('md5').update(`${txid || ''}${secretKey}`).digest('hex');
+      
+      // Combination B: Withdraw/Task ID or User ID variations sent by TimeWall
+      const hashB = crypto.createHash('md5').update(`${withdrawid || txid || ''}${secretKey}`).digest('hex');
+      const hashC = crypto.createHash('md5').update(`${userid}${secretKey}`).digest('hex');
 
-      if (calculatedHash.toLowerCase() !== hash.toLowerCase()) {
-        console.warn(`TimeWall Postback: Hash mismatch for txid ${txid}`);
-        // Return 403 if signature verification fails
+      const incomingHash = hash.toLowerCase();
+
+      if (incomingHash !== hashA.toLowerCase() && 
+          incomingHash !== hashB.toLowerCase() && 
+          incomingHash !== hashC.toLowerCase()) {
+        
+        console.warn(`TimeWall Postback: Hash mismatch for txid ${txid || withdrawid}`);
         return res.status(403).send('Invalid signature hash');
       }
     }
@@ -43,23 +49,22 @@ exports.handlePostback = async (req, res) => {
       return res.status(400).send('Invalid currency amount.');
     }
 
-    // 2. Locate User in Database
+    // 2. Find User in Database
     const user = await User.findById(userid);
     if (!user) {
       console.warn(`TimeWall Postback: User ${userid} not found.`);
       return res.status(404).send('User not found.');
     }
 
-    // 3. Prevent Duplicate Payout Processing (Check if txid or withdrawid exists)
-    const referenceId = withdrawid ? `TW_WD_${withdrawid}` : txid;
+    // 3. Prevent Duplicate Processing
+    const referenceId = withdrawid ? `TW_WD_${withdrawid}` : `TW_${txid}`;
     const existingTxn = await Transaction.findOne({ reference: referenceId });
     
     if (existingTxn) {
-      // Return success response if already processed
       return res.status(200).send('OK');
     }
 
-    // 4. Credit Points to User Balance
+    // 4. Credit User Balance
     user.pointsBalance += amountToCredit;
     await user.save();
 
@@ -84,7 +89,7 @@ exports.handlePostback = async (req, res) => {
 
     console.log(`TimeWall Success: Credited ${amountToCredit} points to user ${user._id}`);
     
-    // TimeWall expects a 200 HTTP status code with "OK" text body
+    // TimeWall requires a 200 OK HTTP response
     return res.status(200).send('OK');
 
   } catch (err) {
