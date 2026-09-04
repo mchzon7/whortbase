@@ -4,7 +4,6 @@ const Transaction = require('../models/Transaction');
 
 exports.handlePostback = async (req, res) => {
   try {
-    // TimeWall sends parameters via GET query
     const {
       userid,
       txid,
@@ -19,22 +18,23 @@ exports.handlePostback = async (req, res) => {
       offerdetail
     } = req.query;
 
-    if (!userid || !txid || !currencyAmount || !hash) {
+    if (!userid || !txid || !currencyAmount) {
       return res.status(400).send('Missing required parameters.');
     }
 
     const secretKey = process.env.TIMEWALL_SECRET_KEY;
 
-    // 1. Verify Security Hash (MD5 hash of txid + secretKey)
-    if (secretKey) {
+    // 1. Verify Hash Signature (If hash is provided by TimeWall)
+    if (secretKey && hash) {
       const calculatedHash = crypto
         .createHash('md5')
         .update(`${txid}${secretKey}`)
         .digest('hex');
 
       if (calculatedHash.toLowerCase() !== hash.toLowerCase()) {
-        console.warn(`TimeWall Postback: Invalid hash signature for txid ${txid}`);
-        return res.status(403).send('Invalid signature hash.');
+        console.warn(`TimeWall Postback: Hash mismatch for txid ${txid}`);
+        // Return 403 if signature verification fails
+        return res.status(403).send('Invalid signature hash');
       }
     }
 
@@ -43,54 +43,49 @@ exports.handlePostback = async (req, res) => {
       return res.status(400).send('Invalid currency amount.');
     }
 
-    // 2. Find User
+    // 2. Locate User in Database
     const user = await User.findById(userid);
     if (!user) {
+      console.warn(`TimeWall Postback: User ${userid} not found.`);
       return res.status(404).send('User not found.');
     }
 
-    // 3. Handle Chargebacks/Reversals (type 2 usually indicates chargebacks in standard offerwalls)
-    if (type === '2' || type === 'chargeback' || type === 'reversal') {
-      const existingTxn = await Transaction.findOne({ reference: txid });
-      if (existingTxn && existingTxn.status !== 'reversed') {
-        user.pointsBalance = Math.max(0, user.pointsBalance - amountToCredit);
-        await user.save();
-
-        existingTxn.status = 'reversed';
-        await existingTxn.save();
-      }
-      return res.send('OK');
-    }
-
-    // 4. Prevent Duplicate Payouts for the same transaction ID
-    const existingTxn = await Transaction.findOne({ reference: txid });
+    // 3. Prevent Duplicate Payout Processing (Check if txid or withdrawid exists)
+    const referenceId = withdrawid ? `TW_WD_${withdrawid}` : txid;
+    const existingTxn = await Transaction.findOne({ reference: referenceId });
+    
     if (existingTxn) {
-      return res.send('OK'); // Already processed
+      // Return success response if already processed
+      return res.status(200).send('OK');
     }
 
-    // 5. Credit Points & Log Transaction
+    // 4. Credit Points to User Balance
     user.pointsBalance += amountToCredit;
     await user.save();
 
+    // 5. Log Transaction Record
     await Transaction.create({
       user: user._id,
       amount: amountToCredit,
       type: 'offerwall',
       status: 'success',
-      reference: txid,
+      reference: referenceId,
       details: {
         provider: 'TimeWall',
         revenue,
         ip,
         withdrawid,
+        type,
         offername,
         offerdetail,
         reason
       }
     });
 
-    console.log(`TimeWall: Credited ${amountToCredit} points to user ${user.username} (TxID: ${txid})`);
-    return res.send('OK'); // TimeWall expects "OK" text response
+    console.log(`TimeWall Success: Credited ${amountToCredit} points to user ${user._id}`);
+    
+    // TimeWall expects a 200 HTTP status code with "OK" text body
+    return res.status(200).send('OK');
 
   } catch (err) {
     console.error('TimeWall Postback Error:', err);
