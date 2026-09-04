@@ -35,14 +35,21 @@
       <hr class="border-secondary">
     </div>
 
-    <!-- TimeWall Offerwall Card -->
+    <!-- TimeWall Offerwall Embedded iFrame Card -->
     <div class="card bg-dark text-white border-secondary p-4 mb-4 offerwall-section">
-      <h3 class="text-warning">Earn Free Points</h3>
-      <p>Complete tasks, surveys, and offers on TimeWall to earn instant points!</p>
+      <h3 class="text-warning mb-3">Earn Free Points</h3>
+      <p>Complete tasks, surveys, and offers below to earn instant points!</p>
       
-      <button class="btn btn-outline-warning w-100" onclick="openTimeWall()">
-        Open TimeWall Offerwall
-      </button>
+      <div class="timewall-container mt-3">
+        <iframe 
+          title="TimeWall" 
+          src="https://timewall.io/users/login?oid=a06765b6293c33f4&uid=<%= user._id %>" 
+          frameborder="0" 
+          width="100%" 
+          height="1000" 
+          scrolling="auto">
+        </iframe>
+      </div>
     </div>
 
     <!-- Referral System Card -->
@@ -157,21 +164,6 @@ function copyReferralLink() {
   input.select();
   document.execCommand('copy');
   alert('Referral link copied to clipboard!');
-}
-</script>
-<script>
-function openTimeWall() {
-  const userId = "<%= user._id %>";
-  const publisherId = "<%= timewallID %>";
-  
-  // TimeWall Widget / App URL
-  const timewallUrl = `https://timewall.io/offerwall/${publisherId}?userID=${userId}`;
-
-  if (window.Telegram && window.Telegram.WebApp) {
-    window.Telegram.WebApp.openLink(timewallUrl);
-  } else {
-    window.open(timewallUrl, '_blank');
-  }
 }
 </script>
 </body>
