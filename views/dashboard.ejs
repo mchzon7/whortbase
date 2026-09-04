@@ -16,13 +16,6 @@
       <a href="/wallet" class="btn btn-sm btn-outline-warning me-2">Wallet</a>
       <% if(user.role === 'admin') { %><a href="/admin" class="btn btn-sm btn-outline-danger me-2">Admin</a><% } %>
     </div>
-    <div class="referral-card">
-      <h3>Invite & Earn</h3>
-      <p>Share your referral link. Earn <strong>50 points</strong> when your referral deposits 500 points or more!</p>
-      
-      <input type="text" class="form-control bg-dark text-white border-secondary mb-2" id="refLink" value="https:// t.me/Bwootbot/bwot?startapp=<%= user.referralCode %>"  readonly />
-      <button class="btn btn-outline-warning w-100" onclick="copyReferralLink()">Copy Link</button>
-    </div>
   </nav>
 
   <div class="container my-4">
@@ -264,13 +257,5 @@
       }
     }
   </script>
-  <script>
-function copyReferralLink() {
-  const input = document.getElementById('refLink');
-  input.select();
-  document.execCommand('copy');
-  alert('Referral link copied to clipboard!');
-}
-</script>
 </body>
 </html>
