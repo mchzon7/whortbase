@@ -6,6 +6,10 @@ const mongoose = require('mongoose');
 const session = require('express-session');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
+let MongoStore = require('connect-mongo');
+if (MongoStore.default) {
+  MongoStore = MongoStore.default;
+}
 
 const User = require('./models/User');
 const Transaction = require('./models/Transaction');
