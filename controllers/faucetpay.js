@@ -25,7 +25,7 @@ exports.withdrawCrypto = async (req, res) => {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-    if (amount < 3) {
+    if (amount < 1000) {
       return res.status(400).json({ error: 'Minimum withdrawal is 1,000 points' });
     }
 
