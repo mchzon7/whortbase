@@ -36,6 +36,14 @@
     </div>
 
     <!-- TimeWall Offerwall Embedded iFrame Card -->
+     <!-- Mobile / Telegram App External Launch Button -->
+    <div class="card bg-dark text-white border-secondary p-4 mb-4 shadow-sm text-center">
+      <h3 class="text-warning mb-2">Earn Free Points</h3>
+      <p class="text-secondary mb-3">If you are using Telegram or a mobile browser, open TimeWall in an external window for full task compatibility.</p>
+      <button class="btn btn-outline-warning btn-lg font-weight-bold" onclick="openTimeWallExternal()">
+        Open TimeWall Tasks in Browser
+      </button>
+    </div>
     <div class="card bg-dark text-white border-secondary p-4 mb-4 offerwall-section">
       <h3 class="text-warning mb-3">Earn Free Points</h3>
       <p>Complete tasks, surveys, and offers below to earn instant points!</p>
@@ -43,13 +51,12 @@
       <div class="timewall-container mt-3">
         <iframe 
           title="TimeWall" 
-          src="https://timewall.io/offerwall/a06765b6293c33f4?userID=<%= user._id %>" 
+          src="https://timewall.io/users/login?oid=12dcc9fe8ee59e3d&userid=<%= user._id %>&uid=<%= user._id %>&tab=surveys" 
           frameborder="0" 
           width="100%" 
           height="1000" 
           scrolling="auto"
-          sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
-          allow="cross-origin-isolated">
+          style="background: #ffffff; border-radius: 8px;">
         </iframe>
       </div>
     </div>
@@ -168,5 +175,17 @@ function copyReferralLink() {
   alert('Referral link copied to clipboard!');
 }
 </script>
+<script>
+    function openTimeWallExternal() {
+      const userId = "<%= user._id %>";
+      const timeWallUrl = `https://timewall.io/users/login?oid=12dcc9fe8ee59e3d&uid=${userId}&tab=surveys`;
+
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+        window.Telegram.WebApp.openLink(timeWallUrl);
+      } else {
+        window.open(timeWallUrl, '_blank');
+      }
+    }
+  </script>
 </body>
 </html>

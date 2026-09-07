@@ -141,8 +141,8 @@ app.post('/api/auth/telegram', async (req, res) => {
   }
 });
 
-//TIMEWALL
-app.get('/postback/timewall', timewallCtrl.handlePostback);
+// TIMEWALL
+app.all(['/api/webhooks/timewall', '/postback/timewall'], timewallCtrl.handlePostback);
 // Logout Route
 app.get('/logout', (req, res) => {
   req.session.destroy(() => {
