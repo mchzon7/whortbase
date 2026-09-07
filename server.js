@@ -31,13 +31,18 @@ app.use(bodyParser.json());
 
 // Express Session Middleware setup
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'your_session_secret_key_123',
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGO_URI,
+    ttl: 14 * 24 * 60 * 60 // 14 days
+  }),
   cookie: {
-    maxAge: 24 * 60 * 60 * 1000, // 1 day
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    secure: false // Set to true in production if using HTTPS
+    sameSite: 'lax'
   }
 }));
 
