@@ -6,10 +6,6 @@ const mongoose = require('mongoose');
 const session = require('express-session');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
-let MongoStore = require('connect-mongo');
-if (MongoStore.default) {
-  MongoStore = MongoStore.default;
-}
 
 const User = require('./models/User');
 const Transaction = require('./models/Transaction');
@@ -35,18 +31,13 @@ app.use(bodyParser.json());
 
 // Express Session Middleware setup
 app.use(session({
-  secret: process.env.SESSION_SECRET,
+  secret: process.env.SESSION_SECRET || 'your_session_secret_key_123',
   resave: false,
   saveUninitialized: false,
-  store: MongoStore.create({
-    mongoUrl: process.env.MONGO_URI,
-    ttl: 14 * 24 * 60 * 60 // 14 days
-  }),
   cookie: {
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: false,
-    sameSite: 'lax'
+    maxAge: 24 * 60 * 60 * 1000, // 1 day
+    httpOnly: true,
+    secure: false // Set to true in production if using HTTPS
   }
 }));
 
